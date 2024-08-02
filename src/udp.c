@@ -18,7 +18,33 @@ map_t udp_table;
  */
 static uint16_t udp_checksum(buf_t *buf, uint8_t *src_ip, uint8_t *dst_ip)
 {
-    // TO-DO
+    uint16_t total_len = buf->len;
+
+    buf_add_header(buf, sizeof(udp_peso_hdr_t));
+    
+    udp_peso_hdr_t * hdr = (udp_peso_hdr_t *) buf->data;
+
+    size_t * sub_ip_hdr = (size_t *) malloc(sizeof(udp_peso_hdr_t));
+    memcpy(sub_ip_hdr, hdr, sizeof(udp_peso_hdr_t));
+
+    memcpy(hdr->src_ip, src_ip, NET_IP_LEN);
+    memcpy(hdr->dst_ip, dst_ip, NET_IP_LEN);
+    hdr->placeholder = 0;
+    hdr->protocol = NET_PROTOCOL_UDP;
+    hdr->total_len16 = swap16(total_len);
+
+    uint8_t padding = total_len & 1;
+    if (padding) buf_add_padding(buf, padding);
+
+    uint16_t checksum = checksum16((uint16_t*)(buf->data), ( total_len + padding + sizeof(udp_peso_hdr_t) ) / sizeof(uint16_t));
+
+    memcpy(hdr, sub_ip_hdr, sizeof(udp_peso_hdr_t));
+    free(sub_ip_hdr);
+    buf_remove_header(buf, sizeof(udp_peso_hdr_t));
+    if (padding) buf_remove_padding(buf, padding);
+
+    return checksum;
+
 }
 
 /**
@@ -29,7 +55,29 @@ static uint16_t udp_checksum(buf_t *buf, uint8_t *src_ip, uint8_t *dst_ip)
  */
 void udp_in(buf_t *buf, uint8_t *src_ip)
 {
-    // TO-DO
+    if (buf->len < sizeof(udp_hdr_t)){
+        return;
+    }
+
+    udp_hdr_t * hdr = (udp_hdr_t *) buf->data;
+    uint16_t checksum16 = hdr->checksum16;
+    hdr->checksum16 = 0;
+    if (checksum16 != 0 & checksum16 != udp_checksum(buf, src_ip, net_if_ip)) return;
+    else hdr->checksum16 = checksum16;
+
+    hdr->dst_port16 = swap16(hdr->dst_port16);
+    udp_handler_t * handler = (udp_handler_t *) map_get(&udp_table, &(hdr->dst_port16));
+    if (handler == NULL){
+        buf_add_header(buf, sizeof(ip_hdr_t));
+        icmp_unreachable(buf, src_ip, ICMP_CODE_PORT_UNREACH);
+    } else {
+        buf_remove_header(buf, sizeof(udp_hdr_t));
+        udp_open(swap16(hdr->dst_port16), handler);
+
+        (*handler)(buf->data, buf->len, src_ip, hdr->dst_port16);
+    }
+
+
 }
 
 /**
@@ -42,7 +90,17 @@ void udp_in(buf_t *buf, uint8_t *src_ip)
  */
 void udp_out(buf_t *buf, uint16_t src_port, uint8_t *dst_ip, uint16_t dst_port)
 {
-    // TO-DO
+    buf_add_header(buf, sizeof(udp_hdr_t));
+
+    udp_hdr_t * hdr = (udp_hdr_t *) buf->data;
+
+    hdr->src_port16 = swap16(src_port);
+    hdr->dst_port16 = swap16(dst_port);
+    hdr->total_len16 = swap16(buf->len);
+    hdr->checksum16 = 0;
+    hdr->checksum16 = udp_checksum(buf, net_if_ip, dst_ip);
+
+    ip_out(buf, dst_ip, NET_PROTOCOL_UDP);
 }
 
 /**

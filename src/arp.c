@@ -58,7 +58,18 @@ void arp_print()
  */
 void arp_req(uint8_t *target_ip)
 {
-    // TO-DO
+    buf_init(&txbuf, ETHERNET_MIN_TRANSPORT_UNIT);
+    memset(txbuf.data, 0, ETHERNET_MIN_TRANSPORT_UNIT);
+
+    arp_pkt_t *arp = (arp_pkt_t *) txbuf.data;
+
+    uint8_t boardcast_mac[] = {0xff,0xff,0xff,0xff,0xff,0xff};
+
+    memcpy(arp, &arp_init_pkt, sizeof(arp_pkt_t));
+    arp->opcode16 = swap16(ARP_REQUEST);
+    memcpy(arp->target_ip, target_ip, NET_IP_LEN );
+
+    ethernet_out(&txbuf, boardcast_mac, NET_PROTOCOL_ARP);
 }
 
 /**
@@ -69,7 +80,17 @@ void arp_req(uint8_t *target_ip)
  */
 void arp_resp(uint8_t *target_ip, uint8_t *target_mac)
 {
-    // TO-DO
+    buf_init(&txbuf, ETHERNET_MIN_TRANSPORT_UNIT);
+    memset(txbuf.data, 0, ETHERNET_MIN_TRANSPORT_UNIT);
+
+    arp_pkt_t *arp = (arp_pkt_t *) txbuf.data;
+
+    memcpy(arp, &arp_init_pkt, sizeof(arp_pkt_t));
+    arp->opcode16 = swap16(ARP_REPLY);
+    memcpy(arp->target_ip, target_ip, NET_IP_LEN );
+    memcpy(arp->target_mac, target_mac, NET_MAC_LEN );
+    
+    ethernet_out(&txbuf, arp->target_mac, NET_PROTOCOL_ARP);
 }
 
 /**
@@ -80,7 +101,37 @@ void arp_resp(uint8_t *target_ip, uint8_t *target_mac)
  */
 void arp_in(buf_t *buf, uint8_t *src_mac)
 {
-    // TO-DO
+
+    if (buf->len < ETHERNET_MIN_TRANSPORT_UNIT -18){
+        // 怎么发进来无填充的arp
+        //printf("\narp_in 已丢弃( 长度 %d\n",buf->len);
+        return;
+    }
+
+    //报文检查
+    arp_pkt_t * arp = (arp_pkt_t*)buf->data;
+    if (memcmp(&arp_init_pkt, arp, 6 ) || ( swap16(arp->opcode16) != ARP_REQUEST & swap16(arp->opcode16) != ARP_REPLY )){
+        return;
+    }
+
+    //更新arp
+    map_set(&arp_table, arp->sender_ip, src_mac);
+
+    if (!memcmp(arp->target_ip, net_if_ip, NET_IP_LEN) & swap16(arp->opcode16) == ARP_REQUEST) {
+        //如果没有，比对本机ip，是目标且为请求报文则响应
+        arp_resp(arp->sender_ip, arp->sender_mac);
+    } 
+
+    buf_t * wait_arp_buf = (buf_t *) map_get(&arp_buf, arp->sender_ip);
+    if (wait_arp_buf != NULL){
+        //如果其源ip是某个缓存包的目标ip,则可以从中找到ip对应的下一个mac,于是可以发出缓存包
+        arp_out(wait_arp_buf, arp->sender_ip);
+        map_delete(&arp_buf, arp->sender_ip);
+    }
+    else if (memcmp(arp->target_ip, net_if_ip, NET_IP_LEN)) {
+        //本机不是目标，直接转发
+        arp_out(buf, arp->target_ip);
+    }
 }
 
 /**
@@ -92,7 +143,17 @@ void arp_in(buf_t *buf, uint8_t *src_mac)
  */
 void arp_out(buf_t *buf, uint8_t *ip)
 {
-    // TO-DO
+    // 查表寻找下一跳mac
+    uint8_t * target_mac = (uint8_t *) map_get(&arp_table, ip);
+    if (target_mac != NULL){
+        
+        ethernet_out(buf, target_mac, NET_PROTOCOL_IP );//lack of protocol
+
+    } else if (map_get(&arp_buf, ip) == NULL){
+    // 未查找到ip地址且此前未曾已经向该ip发送arp请求，则发送arp请求寻找该ip
+        map_set(&arp_buf, ip, buf);
+        arp_req(ip);
+    }
 }
 
 /**

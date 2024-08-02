@@ -20,11 +20,11 @@
 #else
 #define NET_IF_IP    \
     {                   \
-        XX, XX, XX, XX \
+        10, 249, 76, 223 \
     } //自定义网卡ip地址
 #define NET_IF_MAC                      \
     {                                      \
-        0x00, 0x11, 0x22, 0x33, 0x44, 0x55 \
+        0x11, 0x22, 0x33, 0x44, 0x55, 0x66 \
     } //自定义网卡mac地址
 #endif 
 
@@ -33,6 +33,9 @@
 #define ETHERNET_MAX_TRANSPORT_UNIT 1500 //以太网最大传输单元
 
 #define ARP_TIMEOUT_SEC (60 * 5) //arp表过期时间
+#define IP_TIMEOUT_SEC (30) //ip表过期时间
+#define ICMP_TIMEOUT_SEC (30) //icmp表过期时间
+
 #define ARP_MIN_INTERVAL 1       //向相同地址发送arp请求的最小间隔
 
 #define IP_DEFALUT_TTL 64 //IP默认TTL

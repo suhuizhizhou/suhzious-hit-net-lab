@@ -18,7 +18,16 @@ typedef struct ip_hdr
     uint8_t src_ip[NET_IP_LEN]; // 源IP
     uint8_t dst_ip[NET_IP_LEN]; // 目标IP
 } ip_hdr_t;
+
+typedef struct ip_fragment {
+    uint16_t offset;
+    uint8_t mf;
+    buf_t buf;
+    struct ip_fragment *next;
+} ip_fragment_t;
+
 #pragma pack()
+
 
 #define IP_HDR_LEN_PER_BYTE 4      //ip包头长度单位
 #define IP_HDR_OFFSET_PER_BYTE 8   //ip分片偏移长度单位
