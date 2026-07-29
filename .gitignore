@@ -1,0 +1,25 @@
+# CMake build trees and generated files
+/build/
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/Makefile
+/compile_commands.json
+
+# Compiled artifacts
+*.exe
+*.dll
+*.obj
+*.o
+*.a
+*.pdb
+
+# Editor and OS metadata
+/.vscode/
+.DS_Store
+Thumbs.db
+
+# Generated test output (reference inputs remain tracked)
+/testing/data/*/log
+/testing/data/*/out.pcap
+*.log
