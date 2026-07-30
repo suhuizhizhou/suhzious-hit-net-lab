@@ -6,6 +6,7 @@
 #define IP
 #define ICMP
 #define UDP
+#define TCP
 
 
 #ifdef TEST
@@ -39,6 +40,7 @@
 #define ARP_MIN_INTERVAL 1       //向相同地址发送arp请求的最小间隔
 
 #define IP_DEFALUT_TTL 64 //IP默认TTL
+#define TCP_TIMEOUT_SEC (60 * 5)
 
 #define BUF_MAX_LEN (2 * UINT16_MAX + UINT8_MAX) //buf最大长度
 

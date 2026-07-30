@@ -5,6 +5,7 @@
 #include "ip.h"
 #include "icmp.h"
 #include "udp.h"
+#include "tcp.h"
 
 /**
  * @brief 协议表 <协议号,处理程序>的容器
@@ -63,6 +64,7 @@ int net_init()
     ip_init();
     icmp_init();
     udp_init();
+    tcp_init();
     return 0;
 }
 

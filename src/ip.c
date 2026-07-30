@@ -121,8 +121,11 @@ void ip_in(buf_t *buf, uint8_t *src_mac)
     // 校验和
     uint16_t hdr_checksum16 = hdr->hdr_checksum16;
     hdr->hdr_checksum16 = 0;
-    if (hdr_checksum16 ^ checksum16((uint16_t *)hdr, hdr->hdr_len) ) hdr->hdr_checksum16 = hdr_checksum16;
-    else
+    uint16_t calculated_checksum16 = checksum16(
+        (uint16_t *)hdr,
+        hdr->hdr_len * IP_HDR_LEN_PER_BYTE / sizeof(uint16_t));
+    hdr->hdr_checksum16 = hdr_checksum16;
+    if (hdr_checksum16 != calculated_checksum16)
         return;
 
     // 对比本机ip
@@ -147,15 +150,23 @@ void ip_in(buf_t *buf, uint8_t *src_mac)
     }
 
     // 分片进入处理
-    if (hdr->flags_fragment16 & 0x3fff != 0) {
-        ip_fragment_in(buf, hdr->src_ip, hdr->protocol, swap16(hdr->id16), hdr->flags_fragment16 & 0x1fff, (hdr->flags_fragment16 >> 13) & 1);
+    uint16_t flags_fragment = swap16(hdr->flags_fragment16);
+    if ((flags_fragment & 0x3fff) != 0) {
+        ip_fragment_in(buf, hdr->src_ip, hdr->protocol, swap16(hdr->id16), flags_fragment & 0x1fff, (flags_fragment >> 13) & 1);
         return;
     }
     
     // 发往上层协议
+    uint8_t src_ip[NET_IP_LEN];
+    uint8_t protocol = hdr->protocol;
+    memcpy(src_ip, hdr->src_ip, NET_IP_LEN);
     buf_remove_header(buf, sizeof(ip_hdr_t));
 
-    net_in(buf, hdr->protocol, hdr->src_ip);
+    if (net_in(buf, protocol, src_ip) < 0)
+    {
+        buf_add_header(buf, sizeof(ip_hdr_t));
+        icmp_unreachable(buf, src_ip, ICMP_CODE_PROTOCOL_UNREACH);
+    }
 
 }
 

@@ -26,6 +26,7 @@ endif()
 
 set(TEST_FIX_SOURCE 
     testing/faker/driver.c 
+    testing/faker/tcp.c
     testing/global.c
     src/net.c
     src/buf.c
@@ -142,6 +143,20 @@ add_test(
 add_test(
     NAME icmp_test
     COMMAND $<TARGET_FILE:icmp_test> ${CMAKE_CURRENT_LIST_DIR}/testing/data/icmp_test
+)
+
+add_executable(tcp_test
+    testing/tcp_test.c
+    src/tcp.c
+    src/buf.c
+    src/map.c
+    src/utils.c
+)
+target_compile_definitions(tcp_test PUBLIC TEST)
+
+add_test(
+    NAME tcp_test
+    COMMAND $<TARGET_FILE:tcp_test>
 )
 
 message("Executable files is in ${EXECUTABLE_OUTPUT_PATH}.")
