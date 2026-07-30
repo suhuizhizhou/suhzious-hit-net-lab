@@ -24,6 +24,24 @@ uint8_t net_if_mac[NET_MAC_LEN] = NET_IF_MAC;
  */
 uint8_t net_if_ip[NET_IP_LEN] = NET_IF_IP;
 
+int net_set_if_ip(const char *ip)
+{
+    unsigned int octets[NET_IP_LEN];
+    char trailing;
+
+    if (sscanf(ip, "%u.%u.%u.%u%c",
+               &octets[0], &octets[1], &octets[2], &octets[3], &trailing) != NET_IP_LEN)
+        return -1;
+
+    for (size_t i = 0; i < NET_IP_LEN; i++)
+    {
+        if (octets[i] > UINT8_MAX)
+            return -1;
+        net_if_ip[i] = (uint8_t)octets[i];
+    }
+    return 0;
+}
+
 /**
  * @brief 网卡接收和发送缓冲区
  * 

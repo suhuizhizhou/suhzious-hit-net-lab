@@ -62,19 +62,17 @@ void udp_in(buf_t *buf, uint8_t *src_ip)
     udp_hdr_t * hdr = (udp_hdr_t *) buf->data;
     uint16_t checksum16 = hdr->checksum16;
     hdr->checksum16 = 0;
-    if (checksum16 != 0 & checksum16 != udp_checksum(buf, src_ip, net_if_ip)) return;
+    if (checksum16 != 0 && checksum16 != udp_checksum(buf, src_ip, net_if_ip)) return;
     else hdr->checksum16 = checksum16;
 
     hdr->dst_port16 = swap16(hdr->dst_port16);
-    udp_handler_t * handler = (udp_handler_t *) map_get(&udp_table, &(hdr->dst_port16));
-    if (handler == NULL){
+    udp_handler_t * udp_handler = (udp_handler_t *) map_get(&udp_table, &(hdr->dst_port16));
+    if (udp_handler == NULL){
         buf_add_header(buf, sizeof(ip_hdr_t));
         icmp_unreachable(buf, src_ip, ICMP_CODE_PORT_UNREACH);
     } else {
         buf_remove_header(buf, sizeof(udp_hdr_t));
-        udp_open(swap16(hdr->dst_port16), handler);
-
-        (*handler)(buf->data, buf->len, src_ip, hdr->dst_port16);
+        (*udp_handler)(buf->data, buf->len, src_ip, hdr->dst_port16);
     }
 
 

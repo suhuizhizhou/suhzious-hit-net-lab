@@ -6,7 +6,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}\\build\\main.exe",
-            "args": ["testing\\data\\ip_test"],
+            "args": ["${input:virtualIp}"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
@@ -21,6 +21,13 @@
                }
             ],
             "preLaunchTask": "build"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "virtualIp",
+            "type": "promptString",
+            "description": "Unused virtual IPv4 address in the adapter subnet"
         }
     ]
 }

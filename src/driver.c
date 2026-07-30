@@ -3,6 +3,39 @@
 
 #ifdef _WIN32
 #include <tchar.h>
+#include <iphlpapi.h>
+
+static int driver_get_mac(const char *if_name, uint8_t *mac)
+{
+    ULONG size = 0;
+    IP_ADAPTER_ADDRESSES *adapters = NULL;
+    DWORD ret = GetAdaptersAddresses(AF_UNSPEC, 0, NULL, NULL, &size);
+
+    if (ret != ERROR_BUFFER_OVERFLOW)
+        return -1;
+
+    adapters = (IP_ADAPTER_ADDRESSES *)malloc(size);
+    if (!adapters)
+        return -1;
+
+    ret = GetAdaptersAddresses(AF_UNSPEC, 0, NULL, adapters, &size);
+    if (ret == NO_ERROR)
+    {
+        for (IP_ADAPTER_ADDRESSES *adapter = adapters; adapter; adapter = adapter->Next)
+        {
+            if (adapter->PhysicalAddressLength == NET_MAC_LEN &&
+                strstr(if_name, adapter->AdapterName))
+            {
+                memcpy(mac, adapter->PhysicalAddress, NET_MAC_LEN);
+                free(adapters);
+                return 0;
+            }
+        }
+    }
+
+    free(adapters);
+    return -1;
+}
 /**
  * @brief npcp官方提供的加载npcap的dll库函数
  * 
@@ -54,17 +87,21 @@ int driver_find(uint8_t *ip, char *if_name, uint8_t *mask)
         return -1;
     }
 
-    for (d = alldevs; d; d = d->next, if_num++)
+    for (d = alldevs; d && if_num < PCAP_BUF_SIZE; d = d->next, if_num++)
+    {
         for (a = d->addresses; a; a = a->next)
             if (a->addr && a->addr->sa_family == AF_INET)
             {
                 match[if_num] = ip_prefix_match(ip, (uint8_t *)&((struct sockaddr_in *)a->addr)->sin_addr.s_addr);
-                if (match[if_num] < ip_prefix_match((uint8_t *)&mask_all, (uint8_t *)&((struct sockaddr_in *)(a->netmask))->sin_addr.s_addr))
+                if (!a->netmask ||
+                    match[if_num] < ip_prefix_match((uint8_t *)&mask_all, (uint8_t *)&((struct sockaddr_in *)(a->netmask))->sin_addr.s_addr))
                     match[if_num] = 0;
             }
+    }
     if (if_num == 0)
     {
-        fprintf(stderr, "Error, no interface found.\n");
+        fprintf(stderr, "Error, no interface shares a subnet with the requested virtual IP.\n");
+        pcap_freealldevs(alldevs);
         return -1;
     }
     uint8_t max_match = 0;
@@ -82,7 +119,8 @@ int driver_find(uint8_t *ip, char *if_name, uint8_t *mask)
         ;
     if (max_match == 32)
     {
-        fprintf(stderr, "Error, interface %s have the same ip %s with me.\n", d->name, iptos(net_if_ip));
+        fprintf(stderr, "Error, the virtual IP is already assigned to the selected interface.\n");
+        pcap_freealldevs(alldevs);
         return -1;
     }
     for (a = d->addresses; a; a = a->next)
@@ -90,6 +128,7 @@ int driver_find(uint8_t *ip, char *if_name, uint8_t *mask)
             *(uint32_t *)mask = ((struct sockaddr_in *)(a->netmask))->sin_addr.s_addr;
 
     strcpy(if_name, d->name);
+    pcap_freealldevs(alldevs);
     return 0;
 }
 
@@ -116,7 +155,16 @@ int driver_open()
         fprintf(stderr, "Error in driver find.\n");
         return -1;
     }
-    printf("Using interface %s, my ip is %s.\n", if_name, iptos(net_if_ip));
+    printf("Using the network interface matched to the virtual IP.\n");
+
+#ifdef _WIN32
+    if (driver_get_mac(if_name, net_if_mac) < 0)
+    {
+        fprintf(stderr, "Error, unable to read the selected interface MAC address.\n");
+        return -1;
+    }
+    printf("Using the physical interface MAC for Wi-Fi compatibility.\n");
+#endif
 
     if ((pcap = pcap_open_live(if_name, 65536, 1, 10, pcap_errbuf)) == NULL) //混杂模式打开网卡
     {
@@ -130,7 +178,7 @@ int driver_open()
     }
     char filter_exp[PCAP_BUF_SIZE];
     struct bpf_program fp;
-    uint8_t mac_addr[6] = NET_IF_MAC;
+    uint8_t *mac_addr = net_if_mac;
     sprintf(filter_exp, //过滤数据包
             "(ether dst %02x:%02x:%02x:%02x:%02x:%02x or ether broadcast) and (not ether src %02x:%02x:%02x:%02x:%02x:%02x)",
             mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5],

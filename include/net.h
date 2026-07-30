@@ -25,6 +25,7 @@ extern uint8_t net_if_ip[NET_IP_LEN];
 extern buf_t rxbuf, txbuf; //一个buf足够单线程使用
 
 int net_init();
+int net_set_if_ip(const char *ip);
 void net_poll();
 int net_in(buf_t *buf, uint16_t protocol, uint8_t *src);
 void net_add_protocol(uint16_t protocol, net_handler_t handler);

@@ -20,6 +20,9 @@ aux_source_directory(./src DIR_SRCS)
 
 add_executable(main ${DIR_SRCS})
 target_link_libraries(main ${PCAP})
+if(WIN32)
+    target_link_libraries(main iphlpapi)
+endif()
 
 set(TEST_FIX_SOURCE 
     testing/faker/driver.c 
@@ -142,4 +145,3 @@ add_test(
 )
 
 message("Executable files is in ${EXECUTABLE_OUTPUT_PATH}.")
-
